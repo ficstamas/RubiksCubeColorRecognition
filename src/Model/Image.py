@@ -3,6 +3,7 @@ import numpy as np
 import copy
 from PyQt5.QtGui import QImage
 import asyncio
+import math
 
 
 class Image:
@@ -17,43 +18,24 @@ class Image:
         self.__adaptive_threshold = None
         self.__convex_hull = None
         self.__test = None
+        self.__recolored_image = None
+        self.__ch_masked = None
+        self.__contour_data = None
+        self.__bb = None
+        self.__color_pallet = {
+            'black': [0, 0, 0],
+            'white': [255, 255, 255],
+            'blue': [0, 93, 167],
+            'green': [0, 122, 30],
+            'red': [206, 30, 33],
+            'orange': [255, 96, 2],
+            'yellow': [237, 190, 4]
+        }
 
     def imread(self, path: str):
         self.__image = cv.imread(path)
         self.__image_gray = cv.cvtColor(self.image, cv.COLOR_BGR2GRAY)
-
-    def find_contours(self, thresh, max_val, thresh_type=0, kernel=6, iterations=3):
-        if self.image_gray is None:
-            raise Exception("Read in an image with imread!")
-        ret, thresh = cv.threshold(self.image_gray, thresh, max_val, thresh_type)
-        kernel_matrix = np.ones((kernel, kernel), np.uint8)
-        thresh = cv.erode(thresh, kernel_matrix, iterations=iterations)
-        contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-        img = copy.deepcopy(self.image)
-        cv.drawContours(img, contours, -1, (0, 255, 0), 3)
-        self.__contour = (img, contours, hierarchy)
-
-    def make_mask(self):
-        if self.contour is None:
-            raise Exception("First generate the contours with find_contours!")
-        img = np.ndarray(self.image.shape, np.uint8)
-        cv.drawContours(img, self.contour[1], -1, (255, 255, 255), -1)
-        self.__mask = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
-
-    def _mask_image(self):
-        img = self.image.copy()
-        b, g, r = cv.split(img)
-        r = cv.bitwise_and(r, self.mask)
-        g = cv.bitwise_and(g, self.mask)
-        b = cv.bitwise_and(b, self.mask)
-        self.__masked_image = cv.merge((b, g, r))
-
-    def _components(self):
-        retVal, labels = cv.connectedComponents(self.mask, None, 8, cv.CV_16U)
-        labelsNorm = cv.normalize(labels, None, 0, 65535, cv.NORM_MINMAX, cv.CV_16U)
-        cv.imwrite("temp/components.png", labelsNorm)
-        img = cv.imread("temp/components.png")
-        self.__component_image = img
+        # self.recolor_image()
 
     def adaptive_thresholding(self, thresh, kernel, iteration=3):
         neg = cv.bitwise_not(self.image_gray)
@@ -96,40 +78,108 @@ class Image:
         convex_hull = np.array([lower[:-1] + upper[:-1]])
 
         drawing = np.zeros((self.adaptive_threshold.shape[0], self.adaptive_threshold.shape[1], 3), dtype=np.uint8)
-        import random as rng
-        for i in range(len(convex_hull)):
-            color = (rng.randint(0, 256), rng.randint(0, 256), rng.randint(0, 256))
-            # cv.drawContours(drawing, contours, i, color)
-            cv.drawContours(drawing, convex_hull, i, color, thickness=10)
+        if convex_hull.shape[1] > 0:
+            for i in range(len(convex_hull)):
+                color = (255, 255, 255)
+                # cv.drawContours(drawing, contours, i, color)
+                cv.drawContours(drawing, convex_hull, -1, color, thickness=-1)
 
         self.__convex_hull = drawing
 
+    def mask_with_convex_hull(self):
+        img = self.image.copy()
+        mask = cv.cvtColor(self.convex_hull, cv.COLOR_BGR2GRAY)
+        b, g, r = cv.split(img)
+        r = cv.bitwise_and(r, mask)
+        g = cv.bitwise_and(g, mask)
+        b = cv.bitwise_and(b, mask)
+        self.__ch_masked = cv.merge((b, g, r))
+
+    def recolor_image(self):
+        self.__recolored_image = np.zeros(shape=self.image.shape, dtype=np.uint8)
+        for i, row in enumerate(self.image):
+            for j, pixel in enumerate(row):
+                color = 'black'
+                distance = 255**3
+                for key in self.__color_pallet:
+                    cc = self.__color_pallet[key]
+                    d = self._distance(pixel, cc)
+                    if d < distance:
+                        color = key
+                        distance = d
+                self.__recolored_image[i][j] = self.__color_pallet[color]
+
     @classmethod
     def _distance(cls, coord1: list, coord2: list) -> float:
-        x = coord1[0] - coord2[0]
-        y = coord1[1] - coord2[1]
-        return (x**2 - y**2)**(1/2)
-
-    def grab_cut(self):
-        bgdModel = np.zeros((1, 65), np.float64)
-        fgdModel = np.zeros((1, 65), np.float64)
-        rect = (0, 0, self.image.shape[0]-1, self.image.shape[1]-1)
-        cv.grabCut(self.image, self.adaptive_threshold, rect, bgdModel, fgdModel, 5, cv.GC_INIT_WITH_RECT)
-        mask2 = np.where((self.adaptive_threshold == 2) | (self.adaptive_threshold == 0), 0, 1).astype('uint8')
-        img = self.image * mask2[:, :, np.newaxis]
-        self.__test = img
+        d = 0
+        for i in range(coord1.__len__()):
+            d += (coord1[i] - coord2[i])**2
+        return np.sqrt(d)
 
     def debug(self):
         cv.imshow("Colored Image", self.image)
         cv.imshow("Adaptive Threshold Image", self.adaptive_threshold)
-        self.convex_hull()
+        self.calculate_convex_hull()
         cv.imshow("Convex Hull", self.__convex_hull)
         cv.waitKey(0)
         cv.destroyAllWindows()
 
-    def make_canny(self, thresh_min=30, thresh_max=255):
-        canny = cv.Canny(self.image, thresh_min, thresh_max)
-        self.__canny = canny
+    def make_canny(self, thresh_min=0, thresh_max=255, max_gap=50, min_length=50):
+        canny = cv.Canny(self.__ch_masked, thresh_min, thresh_max)
+        # self.__canny = canny
+
+        drawing = np.zeros((canny.shape[0], canny.shape[1], 3), dtype=np.uint8)
+
+        # lines = cv.HoughLines(canny, 1, np.pi / 180, 150, None, 0, 0)
+        #
+        # if lines is not None:
+        #     for i in range(0, len(lines)):
+        #         rho = lines[i][0][0]
+        #         theta = lines[i][0][1]
+        #         a = math.cos(theta)
+        #         b = math.sin(theta)
+        #         x0 = a * rho
+        #         y0 = b * rho
+        #         pt1 = (int(x0 + 1000 * (-b)), int(y0 + 1000 * (a)))
+        #         pt2 = (int(x0 - 1000 * (-b)), int(y0 - 1000 * (a)))
+        #         cv.line(cdst, pt1, pt2, (0, 0, 255), 3, cv.LINE_AA)
+
+        linesP = cv.HoughLinesP(canny, 1, np.pi / 180, 50, None, min_length, max_gap)
+
+        if linesP is not None:
+            for i in range(0, len(linesP)):
+                l = linesP[i][0]
+                cv.line(drawing, (l[0], l[1]), (l[2], l[3]), (255, 255, 255), 3, cv.LINE_AA)
+
+        self.__canny = drawing
+
+    def contouring(self):
+        canny = cv.cvtColor(self.canny, cv.COLOR_BGR2GRAY)
+        contours, hierarchy = cv.findContours(canny, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+        self.__contour_data = contours
+        drawing = np.zeros((self.canny.shape[0], self.canny.shape[1], 3), dtype=np.uint8)
+
+        cv.drawContours(drawing, contours, -1, (255, 255, 255), 3)
+        self.__contour = drawing
+
+    def component_calculation(self):
+        cont = cv.cvtColor(self.__contour, cv.COLOR_BGR2GRAY)
+        cont = cv.bitwise_not(cont)
+        retVal, labels = cv.connectedComponents(cont, None, 8, cv.CV_16U)
+        labelsNorm = cv.normalize(labels, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1)
+        self.__component_image = labelsNorm
+
+    def contour_bounding_box(self):
+        contours, hierarchy = cv.findContours(self.component_image, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+
+        drawing = np.zeros((self.component_image.shape[0], self.component_image.shape[1], 3), dtype=np.uint8)
+
+        for i in range(contours.__len__()):
+            rect = cv.minAreaRect(contours[i])
+            box = cv.boxPoints(rect)
+            box = np.int0(box)
+            cv.drawContours(drawing, [box], 0, (0, 0, 255), 2)
+        self.__bb = drawing
 
     @classmethod
     def image_cv2qt(cls, img) -> QImage:
@@ -149,6 +199,19 @@ class Image:
         )
 
     # Properties
+    @property
+    def bounding_box(self):
+        return self.__bb
+
+    @property
+    def ch_masked(self):
+        self.mask_with_convex_hull()
+        return self.__ch_masked
+
+    @property
+    def recolored_image(self):
+        return self.__recolored_image
+
     @property
     def test_image(self):
         # self.produce_test_image()
@@ -172,15 +235,10 @@ class Image:
 
     @property
     def component_image(self):
-        if self.mask is None:
-            self.make_mask()
-            self._mask_image()
-        self._components()
         return self.__component_image
 
     @property
     def masked_image(self):
-        self._mask_image()
         return self.__masked_image
 
     @property

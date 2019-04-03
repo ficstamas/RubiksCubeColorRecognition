@@ -88,8 +88,6 @@ class Window(QWidget):
         self.image = Image()
 
         self.image.imread(self.file_path)
-        self.image.find_contours(30, 255)
-        self.image.make_mask()
 
         img = QPixmap(Image.image_cv2qt(self.image.image))
         img = img.scaled(300, 300, Qt.KeepAspectRatio)
