@@ -22,6 +22,7 @@ class Image:
         self.__ch_masked = None
         self.__contour_data = None
         self.__bb = None
+        self.__convex_hull_outline = None
         self.__color_pallet = {
             'black': [0, 0, 0],
             'white': [255, 255, 255],
@@ -77,14 +78,17 @@ class Image:
 
         convex_hull = np.array([lower[:-1] + upper[:-1]])
 
+        outline = np.zeros((self.adaptive_threshold.shape[0], self.adaptive_threshold.shape[1], 3), dtype=np.uint8)
         drawing = np.zeros((self.adaptive_threshold.shape[0], self.adaptive_threshold.shape[1], 3), dtype=np.uint8)
         if convex_hull.shape[1] > 0:
             for i in range(len(convex_hull)):
                 color = (255, 255, 255)
                 # cv.drawContours(drawing, contours, i, color)
                 cv.drawContours(drawing, convex_hull, -1, color, thickness=-1)
+                cv.drawContours(outline, convex_hull, -1, color, thickness=3)
 
         self.__convex_hull = drawing
+        self.__convex_hull_outline = outline
 
     def mask_with_convex_hull(self):
         img = self.image.copy()
@@ -131,6 +135,10 @@ class Image:
             pt2 = (int(x0 - 1000 * (-b)), int(y0 - 1000 * (a)))
             return pt1, pt2
 
+        # TODO make function which will represent negative negative numbers as pi-|number| and vica verse
+        def is_theta_error_in_range(theta):
+            pass
+
         line_classes = []
 
         theta_error = np.pi/(180/theta_value)
@@ -146,7 +154,11 @@ class Image:
                     line_classes.append([theta, ])
                 is_theta_exists = False
                 for k, l in enumerate(line_classes):
-                    if l[0]-theta_error <= theta < l[0]+theta_error:
+                    lower_bound = l[0]-theta_error
+                    upper_bound = l[0]+theta_error
+                    if lower_bound < 0:
+
+                    if lower_bound <= theta < upper_bound:
                         is_rho_fine = True
                         for t in l[1:]:
                             if t[2]-rho_error < rho < t[2]+rho_error:
@@ -168,18 +180,11 @@ class Image:
         #         print(points)
 
         # Drawing lines on result image
-        for class_ in line_classes:
+        for class_ in line_classes[1:3]:
             for data in class_[1:]:
                 pt1 = data[0]
                 pt2 = data[1]
                 cv.line(drawing, pt1, pt2, (255, 255, 255), 3, cv.LINE_AA)
-
-        mask = cv.cvtColor(self.convex_hull, cv.COLOR_BGR2GRAY)
-        b, g, r = cv.split(drawing)
-        r = cv.bitwise_and(r, mask)
-        g = cv.bitwise_and(g, mask)
-        b = cv.bitwise_and(b, mask)
-        drawing = cv.merge((b, g, r))
 
         self.__hough_lines = drawing
 
