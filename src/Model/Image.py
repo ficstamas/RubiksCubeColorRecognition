@@ -113,13 +113,15 @@ class Image:
         cv.destroyAllWindows()
 
     def make_hough_transformation(self, thresh_min=0, thresh_max=255, rho_value=50, theta_value=50):
+        # Creating Canny image
         canny = cv.Canny(self.__ch_masked, thresh_min, thresh_max)
         # self.__canny = canny
-
+        # Setting up the result image
         drawing = np.zeros((canny.shape[0], canny.shape[1], 3), dtype=np.uint8)
-
+        # Calculating Hough Lines from the Canny image
         lines = cv.HoughLines(canny, 1, np.pi / 180, 100, None)
 
+        # Converting Polar coordinates to Cartesian
         def polar_to_cartesian(rho, theta):
             a = math.cos(theta)
             b = math.sin(theta)
@@ -129,20 +131,21 @@ class Image:
             pt2 = (int(x0 - 1000 * (-b)), int(y0 - 1000 * (a)))
             return pt1, pt2
 
-        line_cluster = []
+        line_classes = []
 
         theta_error = np.pi/(180/theta_value)
         rho_error = rho_value
+        # Filtering out Lines and organizing them into classes by Rho
         if lines is not None:
             for i in range(0, len(lines)):
                 rho = lines[i][0][0]
                 theta = lines[i][0][1]
 
                 pt1, pt2 = polar_to_cartesian(rho, theta)
-                if line_cluster.__len__() == 0:
-                    line_cluster.append([theta, ])
+                if line_classes.__len__() == 0:
+                    line_classes.append([theta, ])
                 is_theta_exists = False
-                for k, l in enumerate(line_cluster):
+                for k, l in enumerate(line_classes):
                     if l[0]-theta_error <= theta < l[0]+theta_error:
                         is_rho_fine = True
                         for t in l[1:]:
@@ -150,18 +153,33 @@ class Image:
                                 is_rho_fine = False
                                 break
                         if is_rho_fine:
-                            line_cluster[k].append((pt1, pt2, rho))
+                            line_classes[k].append((pt1, pt2, rho))
                         is_theta_exists = True
                         break
 
                 if not is_theta_exists:
-                    line_cluster.append([theta, (pt1, pt2, rho)])
+                    line_classes.append([theta, (pt1, pt2, rho)])
 
-        for cluster in line_cluster:
-            for data in cluster[1:]:
+        masked_lines = []
+        # Masking lines and setting endpoints according to mask
+        # for class_ in line_classes:
+        #     new_class = []
+        #     for points in class_[1:]:
+        #         print(points)
+
+        # Drawing lines on result image
+        for class_ in line_classes:
+            for data in class_[1:]:
                 pt1 = data[0]
                 pt2 = data[1]
                 cv.line(drawing, pt1, pt2, (255, 255, 255), 3, cv.LINE_AA)
+
+        mask = cv.cvtColor(self.convex_hull, cv.COLOR_BGR2GRAY)
+        b, g, r = cv.split(drawing)
+        r = cv.bitwise_and(r, mask)
+        g = cv.bitwise_and(g, mask)
+        b = cv.bitwise_and(b, mask)
+        drawing = cv.merge((b, g, r))
 
         self.__hough_lines = drawing
 
