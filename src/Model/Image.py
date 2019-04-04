@@ -14,7 +14,7 @@ class Image:
         self.__mask = None
         self.__masked_image = None
         self.__component_image = None
-        self.__canny = None
+        self.__hough_lines = None
         self.__adaptive_threshold = None
         self.__convex_hull = None
         self.__test = None
@@ -95,20 +95,6 @@ class Image:
         b = cv.bitwise_and(b, mask)
         self.__ch_masked = cv.merge((b, g, r))
 
-    def recolor_image(self):
-        self.__recolored_image = np.zeros(shape=self.image.shape, dtype=np.uint8)
-        for i, row in enumerate(self.image):
-            for j, pixel in enumerate(row):
-                color = 'black'
-                distance = 255**3
-                for key in self.__color_pallet:
-                    cc = self.__color_pallet[key]
-                    d = self._distance(pixel, cc)
-                    if d < distance:
-                        color = key
-                        distance = d
-                self.__recolored_image[i][j] = self.__color_pallet[color]
-
     @classmethod
     def _distance(cls, coord1: list, coord2: list) -> float:
         d = 0
@@ -119,45 +105,71 @@ class Image:
     def debug(self):
         cv.imshow("Colored Image", self.image)
         cv.imshow("Adaptive Threshold Image", self.adaptive_threshold)
-        self.calculate_convex_hull()
         cv.imshow("Convex Hull", self.__convex_hull)
+        cv.imshow("Hough Lines", self.hough_lines)
+        cv.imshow("Contour", self.contour)
+        cv.imshow("Component Map", self.component_image)
         cv.waitKey(0)
         cv.destroyAllWindows()
 
-    def make_canny(self, thresh_min=0, thresh_max=255, max_gap=50, min_length=50):
+    def make_hough_transformation(self, thresh_min=0, thresh_max=255, rho_value=50, theta_value=50):
         canny = cv.Canny(self.__ch_masked, thresh_min, thresh_max)
         # self.__canny = canny
 
         drawing = np.zeros((canny.shape[0], canny.shape[1], 3), dtype=np.uint8)
 
-        # lines = cv.HoughLines(canny, 1, np.pi / 180, 150, None, 0, 0)
-        #
-        # if lines is not None:
-        #     for i in range(0, len(lines)):
-        #         rho = lines[i][0][0]
-        #         theta = lines[i][0][1]
-        #         a = math.cos(theta)
-        #         b = math.sin(theta)
-        #         x0 = a * rho
-        #         y0 = b * rho
-        #         pt1 = (int(x0 + 1000 * (-b)), int(y0 + 1000 * (a)))
-        #         pt2 = (int(x0 - 1000 * (-b)), int(y0 - 1000 * (a)))
-        #         cv.line(cdst, pt1, pt2, (0, 0, 255), 3, cv.LINE_AA)
+        lines = cv.HoughLines(canny, 1, np.pi / 180, 100, None)
 
-        linesP = cv.HoughLinesP(canny, 1, np.pi / 180, 50, None, min_length, max_gap)
+        def polar_to_cartesian(rho, theta):
+            a = math.cos(theta)
+            b = math.sin(theta)
+            x0 = a * rho
+            y0 = b * rho
+            pt1 = (int(x0 + 1000 * (-b)), int(y0 + 1000 * (a)))
+            pt2 = (int(x0 - 1000 * (-b)), int(y0 - 1000 * (a)))
+            return pt1, pt2
 
-        if linesP is not None:
-            for i in range(0, len(linesP)):
-                l = linesP[i][0]
-                cv.line(drawing, (l[0], l[1]), (l[2], l[3]), (255, 255, 255), 3, cv.LINE_AA)
+        line_cluster = []
 
-        self.__canny = drawing
+        theta_error = np.pi/(180/theta_value)
+        rho_error = rho_value
+        if lines is not None:
+            for i in range(0, len(lines)):
+                rho = lines[i][0][0]
+                theta = lines[i][0][1]
+
+                pt1, pt2 = polar_to_cartesian(rho, theta)
+                if line_cluster.__len__() == 0:
+                    line_cluster.append([theta, ])
+                is_theta_exists = False
+                for k, l in enumerate(line_cluster):
+                    if l[0]-theta_error <= theta < l[0]+theta_error:
+                        is_rho_fine = True
+                        for t in l[1:]:
+                            if t[2]-rho_error < rho < t[2]+rho_error:
+                                is_rho_fine = False
+                                break
+                        if is_rho_fine:
+                            line_cluster[k].append((pt1, pt2, rho))
+                        is_theta_exists = True
+                        break
+
+                if not is_theta_exists:
+                    line_cluster.append([theta, (pt1, pt2, rho)])
+
+        for cluster in line_cluster:
+            for data in cluster[1:]:
+                pt1 = data[0]
+                pt2 = data[1]
+                cv.line(drawing, pt1, pt2, (255, 255, 255), 3, cv.LINE_AA)
+
+        self.__hough_lines = drawing
 
     def contouring(self):
-        canny = cv.cvtColor(self.canny, cv.COLOR_BGR2GRAY)
+        canny = cv.cvtColor(self.hough_lines, cv.COLOR_BGR2GRAY)
         contours, hierarchy = cv.findContours(canny, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
         self.__contour_data = contours
-        drawing = np.zeros((self.canny.shape[0], self.canny.shape[1], 3), dtype=np.uint8)
+        drawing = np.zeros((self.hough_lines.shape[0], self.hough_lines.shape[1], 3), dtype=np.uint8)
 
         cv.drawContours(drawing, contours, -1, (255, 255, 255), 3)
         self.__contour = drawing
@@ -168,18 +180,6 @@ class Image:
         retVal, labels = cv.connectedComponents(cont, None, 8, cv.CV_16U)
         labelsNorm = cv.normalize(labels, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1)
         self.__component_image = labelsNorm
-
-    def contour_bounding_box(self):
-        contours, hierarchy = cv.findContours(self.component_image, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-
-        drawing = np.zeros((self.component_image.shape[0], self.component_image.shape[1], 3), dtype=np.uint8)
-
-        for i in range(contours.__len__()):
-            rect = cv.minAreaRect(contours[i])
-            box = cv.boxPoints(rect)
-            box = np.int0(box)
-            cv.drawContours(drawing, [box], 0, (0, 0, 255), 2)
-        self.__bb = drawing
 
     @classmethod
     def image_cv2qt(cls, img) -> QImage:
@@ -193,8 +193,8 @@ class Image:
     def produce_test_image(self):
         self.__test = cv.normalize(
             cv.add(
-                cv.cvtColor(self.adaptive_threshold, cv.COLOR_GRAY2BGR)
-                , self.convex_hull
+                self.__hough_lines
+                , self.ch_masked
             ), None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1
         )
 
@@ -230,8 +230,8 @@ class Image:
         return self.__adaptive_threshold
 
     @property
-    def canny(self):
-        return self.__canny
+    def hough_lines(self):
+        return self.__hough_lines
 
     @property
     def component_image(self):
@@ -266,9 +266,5 @@ class Image:
         raise Exception("The loaded image can not be modified! (call imread to change it)")
 
     @property
-    def contour(self) -> tuple:
+    def contour(self):
         return self.__contour
-
-    @contour.setter
-    def contour(self, val):
-        raise Exception("Call find_contours to set it!")

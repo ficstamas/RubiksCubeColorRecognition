@@ -18,8 +18,8 @@ class AdaptiveThreshold:
         self.thresh_max = QSlider(Qt.Horizontal)
         self.kernel = QSlider(Qt.Horizontal)
         self.iteration = QSlider(Qt.Horizontal)
-        self.max_gap = QSlider(Qt.Horizontal)
-        self.min_length = QSlider(Qt.Horizontal)
+        self.rho = QSlider(Qt.Horizontal)
+        self.theta = QSlider(Qt.Horizontal)
 
         self._prepare_ui()
 
@@ -41,8 +41,8 @@ class AdaptiveThreshold:
         thresh_max_label = QLabel("Thresh Value: ")
         kernel_label = QLabel("Kernel Size: ")
         iter_label = QLabel("Iterations: ")
-        gap_label = QLabel("Maximum Line Gap: ")
-        length_label = QLabel("Minimum Line Length: ")
+        rho_label = QLabel("Rho Error (Distance): ")
+        theta_label = QLabel("Theta Error (Angle): ")
 
         # Sliders
         self.thresh_max.setMinimum(0)
@@ -66,19 +66,19 @@ class AdaptiveThreshold:
         self.iteration.setTickPosition(QSlider.TicksBelow)
         self.iteration.valueChanged.connect(self.on_value_change)
 
-        self.max_gap.setMinimum(10)
-        self.max_gap.setMaximum(100)
-        self.max_gap.setValue(50)
-        self.max_gap.setTickInterval(1)
-        self.max_gap.setTickPosition(QSlider.TicksBelow)
-        self.max_gap.valueChanged.connect(self.on_value_change)
+        self.rho.setMinimum(1)
+        self.rho.setMaximum(min(self.image.image.shape[:2]))
+        self.rho.setValue(50)
+        self.rho.setTickInterval(1)
+        self.rho.setTickPosition(QSlider.TicksBelow)
+        self.rho.valueChanged.connect(self.on_value_change)
 
-        self.min_length.setMinimum(30)
-        self.min_length.setMaximum(120)
-        self.min_length.setValue(50)
-        self.min_length.setTickInterval(1)
-        self.min_length.setTickPosition(QSlider.TicksBelow)
-        self.min_length.valueChanged.connect(self.on_value_change)
+        self.theta.setMinimum(1)
+        self.theta.setMaximum(180)
+        self.theta.setValue(36)
+        self.theta.setTickInterval(1)
+        self.theta.setTickPosition(QSlider.TicksBelow)
+        self.theta.valueChanged.connect(self.on_value_change)
 
         menu_layout.addWidget(thresh_max_label)
         menu_layout.addWidget(self.thresh_max)
@@ -86,10 +86,10 @@ class AdaptiveThreshold:
         menu_layout.addWidget(self.kernel)
         menu_layout.addWidget(iter_label)
         menu_layout.addWidget(self.iteration)
-        menu_layout.addWidget(gap_label)
-        menu_layout.addWidget(self.max_gap)
-        menu_layout.addWidget(length_label)
-        menu_layout.addWidget(self.min_length)
+        menu_layout.addWidget(rho_label)
+        menu_layout.addWidget(self.rho)
+        menu_layout.addWidget(theta_label)
+        menu_layout.addWidget(self.theta)
 
 
 
@@ -98,20 +98,19 @@ class AdaptiveThreshold:
         thresh = self.thresh_max.value()
         kernel = self.kernel.value()
         iteration = self.iteration.value()
-        max_gap = self.max_gap.value()
-        min_length = self.min_length.value()
+        rho = self.rho.value()
+        theta = self.theta.value()
         if kernel % 2 == 0:
             kernel -= 1
 
         self.image.adaptive_thresholding(thresh, kernel, iteration)
         self.image.calculate_convex_hull()
         self.image.mask_with_convex_hull()
-        self.image.make_canny(max_gap=max_gap, min_length=min_length)
+        self.image.make_hough_transformation(rho_value=rho, theta_value=theta)
         self.image.contouring()
         self.image.component_calculation()
-        self.image.contour_bounding_box()
 
-        result_image = QPixmap(Image.image_cv2qt(self.image.bounding_box))
+        result_image = QPixmap(Image.image_cv2qt(self.image.test_image))
         result_image = result_image.scaled(300, 300, Qt.KeepAspectRatio)
         self.result_image(result_image)
         self.set_result_image()

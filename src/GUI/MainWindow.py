@@ -194,9 +194,9 @@ class Window(QWidget):
 
         self.image.find_contours(val, val2, kernel=val3, iterations=val4)
         self.image.make_mask()
-        self.image.make_canny(val, val2)
+        self.image.make_hough_transformation(val, val2)
 
-        self.result_image = QPixmap(Image.image_cv2qt(self.image.canny))
+        self.result_image = QPixmap(Image.image_cv2qt(self.image.hough_lines))
         self.result_image = self.result_image.scaled(300, 300, Qt.KeepAspectRatio)
         self.set_result_image()
 
