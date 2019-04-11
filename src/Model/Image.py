@@ -136,8 +136,26 @@ class Image:
             return pt1, pt2
 
         # TODO make function which will represent negative negative numbers as pi-|number| and vica verse
-        def is_theta_error_in_range(theta):
-            pass
+        def calculate_intersection(line1: np.ndarray, line2: np.ndarray):
+            l1_x_1 = np.array([[line1[0][0], 1],
+                               [line1[1][0], 1]])
+            l1_y_1 = np.array([[line1[0][1], 1],
+                               [line1[1][1], 1]])
+            l2_x_1 = np.array([[line2[0][0], 1],
+                               [line2[1][0], 1]])
+            l2_y_1 = np.array([[line2[0][1], 1],
+                               [line2[1][1], 1]])
+
+            px_top = np.linalg.det(np.array([[np.linalg.det(line1), np.linalg.det(l1_x_1)],
+                                             [np.linalg.det(line2), np.linalg.det(l2_x_1)]]))
+            bottom = np.linalg.det(np.array([[np.linalg.det(l1_x_1), np.linalg.det(l1_y_1)],
+                                                [np.linalg.det(l2_x_1), np.linalg.det(l2_y_1)]]))
+            px = np.round(px_top/bottom)
+
+            py_top = np.linalg.det(np.array([[np.linalg.det(line1), np.linalg.det(l1_y_1)],
+                                             [np.linalg.det(line2), np.linalg.det(l2_y_1)]]))
+            py = np.round(py_top/bottom)
+            return int(px), int(py)
 
         line_classes = []
 
@@ -157,8 +175,10 @@ class Image:
                     lower_bound = l[0]-theta_error
                     upper_bound = l[0]+theta_error
                     if lower_bound < 0:
-
-                    if lower_bound <= theta < upper_bound:
+                        lower_bound += math.pi
+                    if upper_bound > math.pi:
+                        upper_bound -= math.pi
+                    if lower_bound <= theta or theta < upper_bound:
                         is_rho_fine = True
                         for t in l[1:]:
                             if t[2]-rho_error < rho < t[2]+rho_error:
@@ -172,19 +192,44 @@ class Image:
                 if not is_theta_exists:
                     line_classes.append([theta, (pt1, pt2, rho)])
 
-        masked_lines = []
-        # Masking lines and setting endpoints according to mask
-        # for class_ in line_classes:
-        #     new_class = []
-        #     for points in class_[1:]:
-        #         print(points)
+        intersections = []
+        mask = cv.cvtColor(self.convex_hull, cv.COLOR_BGR2GRAY)
+        for x in range(line_classes.__len__()):
+            for y in range(line_classes.__len__()):
+                if x == y:
+                    continue
+                class1 = line_classes[x]
+                class2 = line_classes[y]
+
+                for p in class1[1:]:
+                    section = []
+                    for q in class2[1:]:
+                        l1 = np.array([[p[0][0], p[0][1]],
+                                       [p[1][0], p[1][1]]])
+                        l2 = np.array([[q[0][0], q[0][1]],
+                                       [q[1][0], q[1][1]]])
+                        i, j = calculate_intersection(l1, l2)
+                        if i >= mask.shape[1] or j >= mask.shape[0] or i < 0 or j < 0:
+                            continue
+
+                        if mask[j][i] == 0:
+                            continue
+                        section.append([i, j])
+                    intersections.append(section)
 
         # Drawing lines on result image
-        for class_ in line_classes[1:3]:
+        for class_ in line_classes:
             for data in class_[1:]:
                 pt1 = data[0]
                 pt2 = data[1]
-                cv.line(drawing, pt1, pt2, (255, 255, 255), 3, cv.LINE_AA)
+                cv.line(drawing, pt1, pt2, (255, 255, 255), 1, cv.LINE_AA)
+        import random
+        for intersection in intersections:
+            rng = random.randint(0, 255)
+            rng2 = random.randint(0, 255)
+            rng3 = random.randint(0, 255)
+            for i in intersection:
+                cv.circle(drawing, tuple(i), 5, (rng2, rng, rng3), -1)
 
         self.__hough_lines = drawing
 

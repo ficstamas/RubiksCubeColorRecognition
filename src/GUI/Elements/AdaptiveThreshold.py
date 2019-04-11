@@ -1,7 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QSlider, QLineEdit, QFormLayout
-from src.GUI.FileDialog import FileDialog
-from PyQt5.QtCore import pyqtSlot, Qt
-from PyQt5.QtGui import QPixmap, QIntValidator, QFont
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QSlider
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap
 from src.Model.Image import Image
 
 

@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QSlider, QLineEdit, QFormLayout
-from src.GUI.FileDialog import FileDialog
+from src.GUI.Elements.FileDialog import FileDialog
 from PyQt5.QtCore import pyqtSlot, Qt
 from PyQt5.QtGui import QPixmap, QIntValidator, QFont
 from src.Model.Image import Image
-from src.GUI.Manu.AdaptiveThreshold import AdaptiveThreshold
+from src.GUI.Elements.AdaptiveThreshold import AdaptiveThreshold
 
 
 class Window(QWidget):
