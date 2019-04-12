@@ -70,8 +70,25 @@ class Image:
                 parallel_filtered.append(line)
             add_item = True
 
-        for line in parallel_filtered:
-            
+        ordered = sorted(parallel_filtered, key=lambda x: x[0])
+        for i in range(ordered.__len__()):
+            if i == ordered.__len__()-1:
+                continue
+            l1 = ordered[i]
+            l2 = ordered[i+1]
+            delta = (l1[2]-l2[0], l1[3]-l2[1])
+            l2[0] += delta[0]
+            l2[1] += delta[1]
+            l2[2] += delta[0]
+            l2[3] += delta[1]
+
+        pt1 = [ordered[0][0], ordered[0][1]]
+        pt2 = [ordered[0][2], ordered[0][3]]
+        pt3 = [ordered[1][2], ordered[1][3]]
+        pt4 = [ordered[1][2]+ordered[0][0]-ordered[0][2], ordered[1][3]+ordered[0][1]-ordered[0][3]]
+
+        sides = np.array([pt1, pt2, pt3, pt4], np.int32)
+        sides = sides.reshape((-1, 1, 2))
 
         # Drawing
         drawing = np.zeros(shape=self.image.shape, dtype=np.uint8)
@@ -89,7 +106,14 @@ class Image:
         if parallel_filtered is not None:
             for i in range(0, len(parallel_filtered)):
                 l = parallel_filtered[i]
+                cv.line(drawing, (int(l[0]), int(l[1])), (int(l[2]), int(l[3])), (255, 255, 255), 3, cv.LINE_AA)
+
+        if ordered is not None:
+            for i in range(0, len(ordered)):
+                l = ordered[i]
                 cv.line(drawing, (int(l[0]), int(l[1])), (int(l[2]), int(l[3])), (0, 255, 0), 3, cv.LINE_AA)
+
+        cv.fillPoly(drawing, [sides], (120, 30, 200))
 
         self.__result_image = drawing
 
