@@ -27,8 +27,7 @@ class AdaptiveThreshold:
             if self.layout.itemAt(i).widget() is not None:
                 self.layout.itemAt(i).widget().setParent(None)
 
-        self.image.adaptive_thresholding(255, 15)
-        result_image = QPixmap(Image.image_cv2qt(self.image.adaptive_threshold))
+        result_image = QPixmap(Image.image_cv2qt(self.image.result_image))
         result_image = result_image.scaled(300, 300, Qt.KeepAspectRatio)
         self.result_image(result_image)
         self.set_result_image()
@@ -102,14 +101,7 @@ class AdaptiveThreshold:
         if kernel % 2 == 0:
             kernel -= 1
 
-        self.image.adaptive_thresholding(thresh, kernel, iteration)
-        self.image.calculate_convex_hull()
-        self.image.mask_with_convex_hull()
-        self.image.make_hough_transformation(rho_value=rho, theta_value=theta)
-        self.image.contouring()
-        self.image.component_calculation()
-
-        result_image = QPixmap(Image.image_cv2qt(self.image.test_image))
+        result_image = QPixmap(Image.image_cv2qt(self.image.result_image))
         result_image = result_image.scaled(300, 300, Qt.KeepAspectRatio)
         self.result_image(result_image)
         self.set_result_image()

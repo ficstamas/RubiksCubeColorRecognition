@@ -95,7 +95,7 @@ class Window(QWidget):
 
 
         # self.image.make_canny()
-        self.result_image = QPixmap(Image.image_cv2qt(self.image.adaptive_threshold))
+        self.result_image = QPixmap(Image.image_cv2qt(self.image.result_image))
         self.result_image = self.result_image.scaled(300, 300, Qt.KeepAspectRatio)
         self.set_result_image()
 
@@ -192,17 +192,14 @@ class Window(QWidget):
         self.thresh_max.setMinimum(val)
         self.thresh_min.setMaximum(val2)
 
-        self.image.find_contours(val, val2, kernel=val3, iterations=val4)
-        self.image.make_mask()
-        self.image.make_hough_transformation(val, val2)
-
-        self.result_image = QPixmap(Image.image_cv2qt(self.image.hough_lines))
+        self.result_image = QPixmap(Image.image_cv2qt(self.image.image))
         self.result_image = self.result_image.scaled(300, 300, Qt.KeepAspectRatio)
         self.set_result_image()
 
     @pyqtSlot()
     def on_click_debug(self):
-        self.image.debug()
+        # self.image.debug()
+        pass
 
     @property
     def result_image(self) -> QPixmap:
