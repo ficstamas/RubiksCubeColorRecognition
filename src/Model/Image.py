@@ -4,6 +4,7 @@ import copy
 from PyQt5.QtGui import QImage
 import asyncio
 import math
+from src.Model.Color import *
 
 
 class Image:
@@ -13,20 +14,10 @@ class Image:
         self.__corners = None
         self.__smoothed = None
         self.__result_image = None
-        self.__color_pallet = {
-            'black': [0, 0, 0],
-            'white': [255, 255, 255],
-            'blue': [0, 93, 167],
-            'green': [0, 122, 30],
-            'red': [206, 30, 33],
-            'orange': [255, 96, 2],
-            'yellow': [237, 190, 4]
-        }
 
     def find_corners(self):
         theta_error = 30
         canny = cv.Canny(self.__image_gray, 50, 200)
-        hough = cv.cvtColor(canny, cv.COLOR_GRAY2BGR)
         lines = cv.HoughLinesP(canny, 1, np.pi/360, 50, None, 15, 20)
 
         # Sorting lines by length and calculating slopes and degrees
@@ -161,7 +152,10 @@ class Image:
 
         # Applying color balance
         cb_image = Image.color_balance(masked_image, 2)
-        
+
+        # TODO Avarage area and detect Color with the class
+        first_section = blocks[0]
+
         # import random
         # for block in blocks:
         #     r = random.randint(0, 255)
