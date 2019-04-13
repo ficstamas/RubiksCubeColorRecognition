@@ -144,17 +144,45 @@ class Image:
         blocks = []
         for i in range(1, 4):
             for j in range(1, 4):
-                s0 = add_vectors(add_vectors(p1, multiply_vector(delta, i-1)), multiply_vector(delta2, j-1))
-                s1 = add_vectors(add_vectors(p1, multiply_vector(delta, i)), multiply_vector(delta2, j-1))
-                s2 = add_vectors(add_vectors(p1, multiply_vector(delta, i-1)), multiply_vector(delta2, j))
-                s3 = add_vectors(add_vectors(p1, multiply_vector(delta, i)), multiply_vector(delta2, j))
+                deltah = divide_vector(delta, 4)
+                deltah2 = divide_vector(delta2, 4)
+                s0 = add_vectors(
+                    add_vectors(add_vectors(p1, multiply_vector(delta, i - 1)), multiply_vector(delta2, j - 1)),
+                    add_vectors(deltah, deltah2)
+                )
+                s1 = add_vectors(
+                    s0,
+                    multiply_vector(deltah, 2)
+                )
+                s2 = add_vectors(
+                    s0,
+                    multiply_vector(deltah2, 2)
+                )
+                s3 = add_vectors(
+                    s2,
+                    multiply_vector(deltah, 2)
+                )
                 blocks.append([s0, s1, s3, s2])
 
         # Applying color balance
-        cb_image = Image.color_balance(masked_image, 2)
+        cb_image = Image.color_balance(masked_image, 1)
 
-        # TODO Avarage area and detect Color with the class
-        first_section = blocks[0]
+        # cv.fillPoly(cb_image, np.array([blocks[0]]), (72, 173, 200))
+
+        # Getting color names
+        names = [["", "", ""],
+                 ["", "", ""],
+                 ["", "", ""]]
+        for i, block in enumerate(blocks):
+            mask = np.zeros(shape=self.__image.shape, dtype=np.uint8)
+            cv.fillPoly(mask, np.array([block]), (255, 255, 255))
+            mask = cv.cvtColor(mask, cv.COLOR_BGR2GRAY)
+            mean = cv.mean(cv.cvtColor(cb_image, cv.COLOR_BGR2YUV), mask)
+            color = Color(mean[0], mean[1], mean[2])
+            cname = ColorComponents.get_color(color)
+            names[int(np.floor(i/3))][i % 3] = cname
+
+        print(names)
 
         # import random
         # for block in blocks:
