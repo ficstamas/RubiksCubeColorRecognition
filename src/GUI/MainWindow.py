@@ -95,6 +95,7 @@ class Window(QWidget):
 
 
         # self.image.make_canny()
+        self.image.detect_colors()
         self.result_image = QPixmap(Image.image_cv2qt(self.image.result_image))
         self.result_image = self.result_image.scaled(300, 300, Qt.KeepAspectRatio)
         self.set_result_image()

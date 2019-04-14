@@ -36,11 +36,14 @@ class DefinedColor:
     def distance(self, color: Color):
         return np.sqrt((color.y-self.center[0])**2 + (color.u-self.center[1])**2 + (color.v-self.center[2]))
 
+    def __repr__(self):
+        return f"<Color {self.name} {self.center}>"
+
 
 class ColorComponents:
     COLOR_COMPONENTS = [
-        DefinedColor(50, 140, 72, 148, 160, 150, 'red'),
-        DefinedColor(140, 210, 52, 148, 160, 150, 'orange'),
+        DefinedColor(50, 140, 72, 148, 160, 250, 'red'),
+        DefinedColor(140, 210, 52, 148, 160, 250, 'orange'),
         DefinedColor(118, 150, 65, 115, 120, 160, 'yellow'),
         DefinedColor(70, 240, 140, 250, 0, 110, 'blue'),
         DefinedColor(70, 240, 5, 135, 10, 110, 'green'),

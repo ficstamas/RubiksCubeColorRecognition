@@ -14,11 +14,24 @@ class Image:
         self.__corners = None
         self.__smoothed = None
         self.__result_image = None
+        self.colors = None
 
-    def find_corners(self):
-        theta_error = 30
-        canny = cv.Canny(self.__image_gray, 50, 200)
-        lines = cv.HoughLinesP(canny, 1, np.pi/360, 50, None, 15, 20)
+    def detect_colors(self, theta_error=30, hlines_min_length=15, hlines_max_gap=20,
+                      canny_threshold1=50, canny_threshold2=200,
+                      no_best_lines=12, color_balance_value=1):
+        """
+        Find and detect colors on Rubik's cube
+        :param theta_error: The error of where wi consider two lines parallel (0-90)
+        :param hlines_min_length: Probabilistic Hough Lines: Minimum length of a line
+        :param hlines_max_gap: Probabilistic Hough Lines: Maximum gap between lines
+        :param canny_threshold1: Minimum threshold value of Canny edge detection
+        :param canny_threshold2: Maximum threshold value of Canny edge detection
+        :param no_best_lines: The number of lines we consider worth to check
+        :param color_balance_value: The percentage of color balance
+        :return:
+        """
+        canny = cv.Canny(self.__image_gray, canny_threshold1, canny_threshold2)
+        lines = cv.HoughLinesP(canny, 1, np.pi/360, 50, None, hlines_min_length, hlines_max_gap)
 
         # Sorting lines by length and calculating slopes and degrees
         sorted_lines = []
@@ -34,7 +47,7 @@ class Image:
             l.append(deg)
             sorted_lines.append(l)
         sorted_lines = sorted(sorted_lines, key=lambda x: x[4], reverse=True)
-        best_lines = sorted_lines[:12]
+        best_lines = sorted_lines[:no_best_lines]
 
         # Filter out parallel lines
         add_item = True
@@ -165,7 +178,10 @@ class Image:
                 blocks.append([s0, s1, s3, s2])
 
         # Applying color balance
-        cb_image = Image.color_balance(masked_image, 1)
+        if color_balance_value > 0:
+            cb_image = Image.color_balance(masked_image, color_balance_value)
+        else:
+            cb_image = masked_image
 
         # cv.fillPoly(cb_image, np.array([blocks[0]]), (72, 173, 200))
 
@@ -181,6 +197,8 @@ class Image:
             color = Color(mean[0], mean[1], mean[2])
             cname = ColorComponents.get_color(color)
             names[int(np.floor(i/3))][i % 3] = cname
+
+        self.colors = names
 
         print(names)
 
@@ -286,5 +304,4 @@ class Image:
 
     @property
     def result_image(self):
-        self.find_corners()
         return self.__result_image
